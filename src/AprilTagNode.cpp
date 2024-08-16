@@ -12,7 +12,6 @@
 
 #include <AprilTagNode.hpp>
 #include <Eigen/Dense>
-#include <image_transport/image_transport.hpp>
 
 #include "cuda.h"          // NOLINT
 #include "cuda_runtime.h"  // NOLINT

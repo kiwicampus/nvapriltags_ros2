@@ -25,7 +25,6 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(utils REQUIRED)
 find_package(tf2_msgs REQUIRED)
-find_package(image_transport REQUIRED)
 find_package(cv_bridge REQUIRED)
 
 # Eigen
@@ -56,7 +55,7 @@ find_package(rosidl_default_generators REQUIRED)
 # AprilTagNode
 add_library(AprilTagNode SHARED src/AprilTagNode.cpp)
 add_dependencies(AprilTagNode nvapriltags)
-ament_target_dependencies(AprilTagNode rclcpp rclcpp_components sensor_msgs std_srvs tf2_msgs utils image_transport cv_bridge)
+ament_target_dependencies(AprilTagNode rclcpp rclcpp_components sensor_msgs std_srvs tf2_msgs utils cv_bridge)
 target_link_libraries(AprilTagNode nvapriltags ${CUDA_LIBRARIES} utils::utils)
 rclcpp_components_register_nodes(AprilTagNode "AprilTagNode")
 

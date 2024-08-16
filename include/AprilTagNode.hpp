@@ -14,7 +14,6 @@
 
 #include "nvapriltags_ros2/msg/april_tag_detection.hpp"
 #include "nvapriltags_ros2/msg/april_tag_detection_array.hpp"
-#include <image_transport/camera_subscriber.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
