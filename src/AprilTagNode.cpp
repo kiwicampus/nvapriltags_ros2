@@ -8,6 +8,7 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
+// clang-format off
 #include <cv_bridge/cv_bridge.h>
 
 #include <AprilTagNode.hpp>

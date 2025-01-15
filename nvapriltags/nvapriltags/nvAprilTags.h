@@ -7,6 +7,7 @@
  * distribution of this software and related documentation without an express
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
+// clang-format off
 
 #ifndef __APRILTAGS__
 #define __APRILTAGS__
