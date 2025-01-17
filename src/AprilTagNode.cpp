@@ -98,7 +98,7 @@ struct AprilTagNode::AprilTagsImpl {
   }
 
   ~AprilTagsImpl() {
-    if (april_tags_handle != nullptr) {
+    if (april_tags_handle != nullptr) {cv::Exception
       cudaStreamDestroy(main_stream);
       nvAprilTagsDestroy(april_tags_handle);
       cudaFree(input_image_buffer);
