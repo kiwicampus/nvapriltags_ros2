@@ -21,6 +21,7 @@
 #include <std_srvs/srv/set_bool.hpp>
 #include <tf2_msgs/msg/tf_message.hpp>
 #include "utils/parameters.hpp"
+#include <geometry_msgs/msg/pose_stamped.hpp>
 
 class AprilTagNode : public rclcpp::Node {
 public:
@@ -44,6 +45,11 @@ private:
     int throttle_interval_ms_ = 100;
     bool enable_processing_ = true;
     bool system_initialized_ = false;
+    int dock_tag_id_;
+    bool use_first_detection_;
+    
+    // Add new members for dock detection
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr dock_pose_pub_;
 
     // const image_transport::CameraSubscriber sub_cam_;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr sub_cam_info_;

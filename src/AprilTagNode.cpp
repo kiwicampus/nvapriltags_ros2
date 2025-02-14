@@ -141,6 +141,7 @@ AprilTagNode::AprilTagNode(rclcpp::NodeOptions options)
         param_manager_.addParameter<double>(tag_edge_size_, "size", 2.0);
         param_manager_.addParameter<int>(max_tags_, "max_tags", 20);
         param_manager_.addParameter<int>(throttle_interval_ms_, "processing_period_ms", 100);
+        param_manager_.addParameter<int>(dock_tag_id_, "dock_tag_id", -1);
         params_callback_handle_ = this->add_on_set_parameters_callback(
           std::bind(&AprilTagNode::parameters_cb, this, std::placeholders::_1));
 
@@ -166,6 +167,10 @@ AprilTagNode::AprilTagNode(rclcpp::NodeOptions options)
         srv_enable_processing_ = create_service<std_srvs::srv::SetBool>(
             "control_processing",
             std::bind(&AprilTagNode::controlProcessing, this, std::placeholders::_1, std::placeholders::_2));
+
+        // Add dock pose publisher
+        dock_pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(
+            "detected_dock_pose", 10);
       }
 
 void AprilTagNode::processImages() {
@@ -269,6 +274,15 @@ void AprilTagNode::onCameraFrame(
     msg_detection.pose.pose.pose.position.z = tf.transform.translation.z;
     msg_detection.pose.pose.pose.orientation = tf.transform.rotation;
     msg_detections.detections.push_back(msg_detection);
+
+    // If this is the dock tag we're looking for, publish its pose
+    if (detection.id == dock_tag_id_) {
+        geometry_msgs::msg::PoseStamped dock_pose;
+        dock_pose.header = msg_img->header;
+        dock_pose.pose = msg_detection.pose.pose.pose;  // Reuse the already processed pose
+        dock_pose_pub_->publish(dock_pose);
+        RCLCPP_INFO(get_logger(), "Published dock pose for tag %d with id %d", detection.id, dock_tag_id_);
+    }
   }
 
   if(pub_detections_->get_subscription_count())
