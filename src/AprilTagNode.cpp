@@ -146,15 +146,24 @@ AprilTagNode::AprilTagNode(rclcpp::NodeOptions options)
           std::bind(&AprilTagNode::parameters_cb, this, std::placeholders::_1));
 
         detection_callback_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
-        // Add camera info and image subscriptions to the callback group
         rclcpp::SubscriptionOptions sub_options;
         sub_options.callback_group = detection_callback_group_;
-        // Create separate subscriptions for camera info and image
+
+        // Create QoS profile to match publisher
+        auto qos = rclcpp::QoS(5)  // History depth of 5
+            .best_effort()          // BEST_EFFORT reliability
+            .durability_volatile(); // VOLATILE durability
+
+        // Create subscriptions with matching QoS
         sub_cam_info_ = create_subscription<sensor_msgs::msg::CameraInfo>(
-            "camera_info", rclcpp::QoS(1).best_effort(), std::bind(&AprilTagNode::onCameraInfo, this, std::placeholders::_1), sub_options);
+            "camera_info", qos,
+            std::bind(&AprilTagNode::onCameraInfo, this, std::placeholders::_1),
+            sub_options);
 
         sub_cam_ = create_subscription<sensor_msgs::msg::Image>(
-            "image", rclcpp::QoS(1).best_effort(), std::bind(&AprilTagNode::onCameraFrame, this, std::placeholders::_1), sub_options);
+            "image", qos,
+            std::bind(&AprilTagNode::onCameraFrame, this, std::placeholders::_1),
+            sub_options);
 
         detection_exec_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
         detection_exec_->add_callback_group(detection_callback_group_, get_node_base_interface());
@@ -175,24 +184,31 @@ AprilTagNode::AprilTagNode(rclcpp::NodeOptions options)
 
 void AprilTagNode::processImages() {
   if (enable_processing_) {
+    RCLCPP_DEBUG(get_logger(), "Processing images...");
     detection_exec_->spin_some();
+  } else {
+    RCLCPP_DEBUG(get_logger(), "Processing is disabled");
   }
 }
 
 void AprilTagNode::onCameraFrame(
     const sensor_msgs::msg::Image::ConstSharedPtr &msg_img) {
+  RCLCPP_DEBUG(get_logger(), "Received camera frame");
   cv::Mat img_rgb8 = cv_bridge::toCvShare(msg_img, "rgb8")->image;
+  RCLCPP_DEBUG(get_logger(), "Converted to RGB8");
 
   // Create an empty RGBA image with the same size as the input image
   cv::Mat img_rgba8;
 
   // Convert the RGB image to RGBA by adding an alpha channel
   cv::cvtColor(img_rgb8, img_rgba8, cv::COLOR_RGB2RGBA);
+  RCLCPP_DEBUG(get_logger(), "Converted to RGBA8");
 
   if(saved_cam_info_)
   {
   // Setup detector on first frame
     if (impl_->april_tags_handle == nullptr) {
+      RCLCPP_DEBUG(get_logger(), "Initializing AprilTag detector...");
       impl_->initialize(*this, img_rgba8.cols, img_rgba8.rows,
                         img_rgba8.total() * img_rgba8.elemSize(), img_rgba8.step,
                         saved_cam_info_);
@@ -205,35 +221,37 @@ void AprilTagNode::onCameraFrame(
   else
   {
     RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 20000, "Waiting for camera info on topic %s", sub_cam_->get_topic_name());
+    return;
   }
 
-  // Copy frame into CUDA buffer
+  RCLCPP_DEBUG(get_logger(), "Copying frame to CUDA buffer");
   const cudaError_t cuda_error =
       cudaMemcpy(impl_->input_image_buffer, img_rgba8.ptr(),
                  impl_->input_image_buffer_size, cudaMemcpyHostToDevice);
   if (cuda_error != cudaSuccess) {
-    throw std::runtime_error(
-        "Could not memcpy to device CUDA memory (error code " +
-        std::to_string(cuda_error) + ")");
+    RCLCPP_ERROR(get_logger(), "CUDA memcpy failed with error: %d", cuda_error);
+    return;
   }
 
-  // Perform detection
+  RCLCPP_DEBUG(get_logger(), "Starting AprilTag detection");
   uint32_t num_detections;
   const int error = nvAprilTagsDetect(
       impl_->april_tags_handle, &(impl_->input_image), impl_->tags.data(),
       &num_detections, max_tags_, impl_->main_stream);
   if (error != 0) {
-    throw std::runtime_error("Failed to run AprilTags detector (error code " +
-                             std::to_string(error) + ")");
+    RCLCPP_ERROR(get_logger(), "AprilTag detection failed with error: %d", error);
+    return;
   }
+  RCLCPP_DEBUG(get_logger(), "Found %d tags", num_detections);
 
   // Parse detections into published protos
   nvapriltags_ros2::msg::AprilTagDetectionArray msg_detections;
   msg_detections.header = msg_img->header;
   tf2_msgs::msg::TFMessage tfs;
+
   for (int i = 0; i < num_detections; i++) {
     const nvAprilTagsID_t &detection = impl_->tags[i];
-
+    RCLCPP_DEBUG(get_logger(), "Processing detection %d with ID %d", i, detection.id);
     // detection
     nvapriltags_ros2::msg::AprilTagDetection msg_detection;
     msg_detection.family = tag_family_;
@@ -285,19 +303,26 @@ void AprilTagNode::onCameraFrame(
     }
   }
 
-  if(pub_detections_->get_subscription_count())
-  {
+  if(pub_detections_->get_subscription_count()) {
+    RCLCPP_DEBUG(get_logger(), "Publishing %zu detections", msg_detections.detections.size());
     pub_detections_->publish(msg_detections);
+  } else {
+    RCLCPP_DEBUG(get_logger(), "No subscribers for detections");
   }
   pub_tf_->publish(tfs);
 }
 
-void AprilTagNode::onCameraInfo(const sensor_msgs::msg::CameraInfo::ConstSharedPtr &msg_ci) {
+void AprilTagNode::onCameraInfo(
+    const sensor_msgs::msg::CameraInfo::ConstSharedPtr &msg_ci) {
+  RCLCPP_DEBUG(get_logger(), "Received camera info");
   saved_cam_info_ = msg_ci;
 }
 
-void AprilTagNode::controlProcessing(const std_srvs::srv::SetBool::Request::SharedPtr request,
-                        std_srvs::srv::SetBool::Response::SharedPtr response) {
+void AprilTagNode::controlProcessing(
+    const std_srvs::srv::SetBool::Request::SharedPtr request,
+    std_srvs::srv::SetBool::Response::SharedPtr response) {
+  RCLCPP_DEBUG(get_logger(), "Processing control request received: %s", 
+              request->data ? "enable" : "disable");
   if(!system_initialized_)
   {
     response->success = false;
