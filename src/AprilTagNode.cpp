@@ -141,7 +141,7 @@ AprilTagNode::AprilTagNode(rclcpp::NodeOptions options)
         param_manager_.addParameter<double>(tag_edge_size_, "size", 2.0);
         param_manager_.addParameter<int>(max_tags_, "max_tags", 20);
         param_manager_.addParameter<int>(throttle_interval_ms_, "processing_period_ms", 100);
-        param_manager_.addParameter<int>(dock_tag_id_, "dock_tag_id", -1);
+        param_manager_.addParameter<std::string>(dock_tag_id_str_, "dock_tag_id_str", "-1");
         params_callback_handle_ = this->add_on_set_parameters_callback(
           std::bind(&AprilTagNode::parameters_cb, this, std::placeholders::_1));
 
@@ -179,7 +179,7 @@ AprilTagNode::AprilTagNode(rclcpp::NodeOptions options)
 
         // Add dock pose publisher
         dock_pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(
-            "detected_dock_pose", 10);
+            "/detected_dock_pose", 10);
       }
 
 void AprilTagNode::processImages() {
@@ -294,6 +294,10 @@ void AprilTagNode::onCameraFrame(
     msg_detections.detections.push_back(msg_detection);
 
     // If this is the dock tag we're looking for, publish its pose
+
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Dock tag id: %d", dock_tag_id_);
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Detection id: %d", detection.id);
+
     if (detection.id == dock_tag_id_) {
         geometry_msgs::msg::PoseStamped dock_pose;
         dock_pose.header = msg_img->header;
@@ -336,27 +340,31 @@ void AprilTagNode::controlProcessing(
 
 rcl_interfaces::msg::SetParametersResult AprilTagNode::parameters_cb(const std::vector<rclcpp::Parameter>& parameters)
 {
-  // Prevent updating parameters while processing
-  auto result = param_manager_.parametersCb(parameters);
-  for (auto& parameter : parameters)
-  {
-    const auto& type = parameter.get_type();
-    const auto& name = parameter.get_name();
-
-    if (type == rclcpp::ParameterType::PARAMETER_INTEGER)
+    // Prevent updating parameters while processing
+    auto result = param_manager_.parametersCb(parameters);
+    for (auto& parameter : parameters)
     {
-      if (name == "processing_period_ms")
-      {
-        throttle_interval_ms_ = parameter.as_int();
-          processing_timer_->reset();
-          processing_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(throttle_interval_ms_),
-            std::bind(&AprilTagNode::processImages, this));
-      }
-    }
-  }
+        const auto& type = parameter.get_type();
+        const auto& name = parameter.get_name();
 
-  return result;
+        if (name == "dock_tag_id_str" && type == rclcpp::ParameterType::PARAMETER_STRING) {
+            try {
+                dock_tag_id_str_ = parameter.as_string();
+                dock_tag_id_ = std::stoi(dock_tag_id_str_);
+                RCLCPP_INFO(get_logger(), "Updated dock_tag_id to: %d", dock_tag_id_);
+            } catch (const std::exception& e) {
+                RCLCPP_ERROR(get_logger(), "Failed to convert dock_tag_id string to integer: %s", e.what());
+            }
+        } else if (name == "processing_period_ms" && type == rclcpp::ParameterType::PARAMETER_INTEGER) {
+            throttle_interval_ms_ = parameter.as_int();
+            processing_timer_->reset();
+            processing_timer_ = this->create_wall_timer(
+                std::chrono::milliseconds(throttle_interval_ms_),
+                std::bind(&AprilTagNode::processImages, this));
+        }
+    }
+
+    return result;
 }
 
 #include <rclcpp_components/register_node_macro.hpp>

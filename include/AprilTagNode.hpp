@@ -45,8 +45,9 @@ private:
     int throttle_interval_ms_ = 100;
     bool enable_processing_ = true;
     bool system_initialized_ = false;
-    int dock_tag_id_;
+    int dock_tag_id_ = -1;
     bool use_first_detection_;
+    std::string dock_tag_id_str_ ="-1";
     
     // Add new members for dock detection
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr dock_pose_pub_;
