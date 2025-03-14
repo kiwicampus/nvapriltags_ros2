@@ -294,16 +294,12 @@ void AprilTagNode::onCameraFrame(
     msg_detections.detections.push_back(msg_detection);
 
     // If this is the dock tag we're looking for, publish its pose
-
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Dock tag id: %d", dock_tag_id_);
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Detection id: %d", detection.id);
-
     if (detection.id == dock_tag_id_) {
         geometry_msgs::msg::PoseStamped dock_pose;
         dock_pose.header = msg_img->header;
         dock_pose.pose = msg_detection.pose.pose.pose;  // Reuse the already processed pose
         dock_pose_pub_->publish(dock_pose);
-        RCLCPP_INFO(get_logger(), "Published dock pose for tag %d with id %d", detection.id, dock_tag_id_);
+        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 5000, "Published dock pose for tag %d with id %d", detection.id, dock_tag_id_);
     }
   }
 
@@ -350,10 +346,17 @@ rcl_interfaces::msg::SetParametersResult AprilTagNode::parameters_cb(const std::
         if (name == "dock_tag_id_str" && type == rclcpp::ParameterType::PARAMETER_STRING) {
             try {
                 dock_tag_id_str_ = parameter.as_string();
-                dock_tag_id_ = std::stoi(dock_tag_id_str_);
-                RCLCPP_INFO(get_logger(), "Updated dock_tag_id to: %d", dock_tag_id_);
+                if (dock_tag_id_str_.empty()) {
+                    dock_tag_id_ = -1;  // Default value for empty string
+                    RCLCPP_INFO(get_logger(), "Empty dock_tag_id_str received, setting dock_tag_id to default: %d", dock_tag_id_);
+                } else {
+                    dock_tag_id_ = std::stoi(dock_tag_id_str_);
+                    RCLCPP_INFO(get_logger(), "Updated dock_tag_id to: %d", dock_tag_id_);
+                }
             } catch (const std::exception& e) {
                 RCLCPP_ERROR(get_logger(), "Failed to convert dock_tag_id string to integer: %s", e.what());
+                dock_tag_id_ = -1;  // Set to default value on conversion failure
+                RCLCPP_INFO(get_logger(), "Setting dock_tag_id to default: %d", dock_tag_id_);
             }
         } else if (name == "processing_period_ms" && type == rclcpp::ParameterType::PARAMETER_INTEGER) {
             throttle_interval_ms_ = parameter.as_int();
