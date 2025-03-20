@@ -206,16 +206,34 @@ void AprilTagNode::onCameraFrame(
 
   if(saved_cam_info_)
   {
-  // Setup detector on first frame
+    // Check if initialized detector dimensions match current frame
+    if (system_initialized_ && 
+        (impl_->input_image.width != static_cast<uint32_t>(img_rgba8.cols) || 
+         impl_->input_image.height != static_cast<uint32_t>(img_rgba8.rows))) {
+      RCLCPP_INFO(get_logger(), "Image dimensions changed from %dx%d to %dx%d, resetting detector",
+                 impl_->input_image.width, impl_->input_image.height,
+                 img_rgba8.cols, img_rgba8.rows);
+      
+      // Clean up existing detector
+      if (impl_->april_tags_handle != nullptr) {
+        cudaStreamDestroy(impl_->main_stream);
+        nvAprilTagsDestroy(impl_->april_tags_handle);
+        cudaFree(impl_->input_image_buffer);
+        impl_->april_tags_handle = nullptr;
+        impl_->input_image_buffer = nullptr;
+      }
+      system_initialized_ = false;
+    }
+  
+    // Setup detector on first frame or if needs reinitialization
     if (impl_->april_tags_handle == nullptr) {
       RCLCPP_DEBUG(get_logger(), "Initializing AprilTag detector...");
       impl_->initialize(*this, img_rgba8.cols, img_rgba8.rows,
                         img_rgba8.total() * img_rgba8.elemSize(), img_rgba8.step,
                         saved_cam_info_);
-      RCLCPP_INFO(get_logger(), "Apriltag detection initialized on %s, unsubscribing from %s", sub_cam_->get_topic_name(), sub_cam_info_->get_topic_name());
-      // After initialization, stop subscribing to camera info
-      saved_cam_info_.reset();
+      RCLCPP_INFO(get_logger(), "Apriltag detection initialized on %s", sub_cam_->get_topic_name());
       system_initialized_ = true;
+      // Don't reset saved_cam_info_ - keep the subscription active
     }
   }
   else
@@ -315,7 +333,7 @@ void AprilTagNode::onCameraFrame(
 void AprilTagNode::onCameraInfo(
     const sensor_msgs::msg::CameraInfo::ConstSharedPtr &msg_ci) {
   RCLCPP_DEBUG(get_logger(), "Received camera info");
-  saved_cam_info_ = msg_ci;
+  saved_cam_info_ = msg_ci;  // Always update with the latest camera info
 }
 
 void AprilTagNode::controlProcessing(
