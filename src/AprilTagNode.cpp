@@ -142,6 +142,7 @@ AprilTagNode::AprilTagNode(rclcpp::NodeOptions options)
         param_manager_.addParameter<int>(max_tags_, "max_tags", 20);
         param_manager_.addParameter<int>(throttle_interval_ms_, "processing_period_ms", 100);
         param_manager_.addParameter<std::string>(dock_tag_id_str_, "dock_tag_id_str", "-1");
+        param_manager_.addParameter<bool>(enable_processing_, "enable_processing", true);
         params_callback_handle_ = this->add_on_set_parameters_callback(
           std::bind(&AprilTagNode::parameters_cb, this, std::placeholders::_1));
 
@@ -382,6 +383,10 @@ rcl_interfaces::msg::SetParametersResult AprilTagNode::parameters_cb(const std::
             processing_timer_ = this->create_wall_timer(
                 std::chrono::milliseconds(throttle_interval_ms_),
                 std::bind(&AprilTagNode::processImages, this));
+        } else if (name == "enable_processing" && type == rclcpp::ParameterType::PARAMETER_BOOL) {
+            enable_processing_ = parameter.as_bool();
+            RCLCPP_INFO(get_logger(), "AprilTag processing %s", 
+                       enable_processing_ ? "enabled" : "disabled");
         }
     }
 
