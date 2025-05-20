@@ -69,4 +69,6 @@ private:
 
     struct AprilTagsImpl;
     std::unique_ptr<AprilTagsImpl> impl_;
+
+    bool invert_colors_ = false;
 };
