@@ -143,6 +143,7 @@ AprilTagNode::AprilTagNode(rclcpp::NodeOptions options)
         param_manager_.addParameter<int>(throttle_interval_ms_, "processing_period_ms", 100);
         param_manager_.addParameter<std::string>(dock_tag_id_str_, "dock_tag_id_str", "-1");
         param_manager_.addParameter<bool>(enable_processing_, "enable_processing", true);
+        param_manager_.addParameter<bool>(inverted_apriltag_colors_, "inverted_apriltag_colors", false);
         params_callback_handle_ = this->add_on_set_parameters_callback(
           std::bind(&AprilTagNode::parameters_cb, this, std::placeholders::_1));
 
@@ -197,6 +198,19 @@ void AprilTagNode::onCameraFrame(
   RCLCPP_DEBUG(get_logger(), "Received camera frame");
   cv::Mat img_rgb8 = cv_bridge::toCvShare(msg_img, "rgb8")->image;
   RCLCPP_DEBUG(get_logger(), "Converted to RGB8");
+
+  if (inverted_apriltag_colors_) {
+    // First convert to grayscale
+    cv::Mat gray_image;
+    cv::cvtColor(img_rgb8, gray_image, cv::COLOR_RGB2GRAY);
+       
+    // Convert back to RGB (3 channels but grayscale content)
+    cv::cvtColor(gray_image, img_rgb8, cv::COLOR_GRAY2RGB);
+    
+    // Then invert colors
+    cv::bitwise_not(img_rgb8, img_rgb8);
+    
+  }
 
   // Create an empty RGBA image with the same size as the input image
   cv::Mat img_rgba8;
