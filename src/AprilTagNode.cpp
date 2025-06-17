@@ -296,6 +296,12 @@ void AprilTagNode::onCameraFrame(
           detection.corners[corner_idx].x;
       msg_detection.corners.data()[corner_idx].y =
           detection.corners[corner_idx].y;
+      
+      // Add normalized corners (0.0-1.0 range)
+      msg_detection.corners_normalized.data()[corner_idx].x =
+          detection.corners[corner_idx].x / img_rgba8.cols;
+      msg_detection.corners_normalized.data()[corner_idx].y =
+          detection.corners[corner_idx].y / img_rgba8.rows;
     }
 
     // center
@@ -310,6 +316,18 @@ void AprilTagNode::onCameraFrame(
     msg_detection.center.x = (intercept_2 - intercept_1) / (slope_1 - slope_2);
     msg_detection.center.y = (slope_2 * intercept_1 - slope_1 * intercept_2) /
                               (slope_2 - slope_1);
+    
+    // Add normalized center coordinates
+    msg_detection.center_normalized.x = msg_detection.center.x / img_rgba8.cols;
+    msg_detection.center_normalized.y = msg_detection.center.y / img_rgba8.rows;
+    
+    // Add normalized corners (0.0-1.0 range)
+    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+      msg_detection.corners_normalized.data()[corner_idx].x = 
+          detection.corners[corner_idx].x / img_rgba8.cols;
+      msg_detection.corners_normalized.data()[corner_idx].y = 
+          detection.corners[corner_idx].y / img_rgba8.rows;
+    }
 
     // Timestamped Pose3 transform
     geometry_msgs::msg::TransformStamped tf;
