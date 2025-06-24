@@ -1,4 +1,4 @@
-# NVAprilTags ROS2 Node
+# NVAprilTags ROS2 Node!
 
 This ROS2 node uses the NVIDIA GPU-accelerated AprilTags library to detect AprilTags in images and publish their poses, ids, and additional metadata. This has been tested on ROS2 (Foxy) and should build and run on x86_64 and aarch64 (Jetson). It is modeled after and comparable to the ROS2 node for CPU AprilTags detection here: https://github.com/christianrauch/apriltag_ros.git
 
